@@ -1,0 +1,120 @@
+When you're ready to see the answers to these questions, unzip ANSWERS.zip
+and run the batch file `run_project.bat`. 
+
+PART A: READING FROM A DATABASE WITH PYTHON'S DB API
+Answer the following three questions by querying the database with sqlite3.
+1. How many rows are in fake_sales.sqlite?
+2. How many distinct names are there?
+3a. Which starting character for a name has the most associated rows? How many 
+    rows?
+    Hint: You *cannot* easily solve this problem with SQLite's SUBSTR function.
+3b. Which letters of the alphabet do not have any names that begin with them?
+===============
+PART B: CREATING A TABLE WITH PYTHON'S DB API
+4. Due to an data entry error, fake_sales.sqlite is filled with bad values! All 
+    rows where the "amount" field is negative or a prime number should be 
+    discarded.
+Now create a new table called Clean_Sales in fake_sales.sqlite containing the 
+    i, agent_id, agent, and amount fields that satisfy problem 4.
+You can use a Python function, a SQLite UDF, or some combination of the two to 
+    clean the data. 
+Once you've cleaned the data, answer the following questions:
+5. After discarding the prime and negative sales values, which agent has the 
+    highest total amount?
+6. Which agent has the highest ratio of "cleaned" sales to "uncleaned" sales? 
+    For example, suppose the "amount" values associated with "Megan" are [1, 
+    -1, 14, 17, 20]. Her "uncleaned" sales are 1+-1+14+17+20 = 51. Her 
+    "cleaned" sales are 1+14+20 = 35, since -1 is negative and 17 is prime. 
+    Thus, her "clean"/"unclean" ratio is 35/51 = 0.6863.
+===============
+PART C: ASYNCHRONOUS READING FROM A DATABASE
+Now re-create the Clean_Sales table in the database from scratch. The catch: 
+    you can only use the get_rows function in async_db_access.py to access the
+    database. You will have to get the rows for each agent_id, collect them,
+    and then insert all the "cleaned" rows into the database.
+Note that this uses `aiosqlite` instead of `sqlite3`. Everything should be 
+    very similar, but you will use "async with aiosqlite.connect(dbname) as con"
+    instead of "with sqlite3.connect(dbname) as con" to connect to the database,
+    and you will use "con.execute()" instead of "cur.execute()" to send SQL
+    queries to the database. Don't call "cur = con.cursor()" with aiosqlite!
+    Those connections don't have a "cursor()" method.
+Once you've finished recreating the database, you should check that you get the
+    same answers to all the questions in parts A and B, to make sure you set up
+    the Clean_Sales table correctly.
+
+OPTIONAL: If you would prefer, you can use the `threading` library instead of
+	asyncio to access the database.
+	If you do this, you should use multiple threads to concurrently access the
+	database.
+	You will have to use a threading.Lock() to lock access to the database while
+	one thread is reading from it so that you don't have any problems.
+===============
+PART D: ASYNCHRONOUS READING OF FILES
+The sales team would like you to fetch the sales data from their remote
+    server (the sales_data subdirectory) and enter it into the Sales table in 
+    their database ('fake_sales.sqlite').
+
+Because the connection to their remote server is slow, you should use the
+	`aiofile` library (https://github.com/mosquito/aiofile) to read the files.
+	You can install it using pip (on your Hortonworks instance, this would be
+    "pip3 install --user aiofile").
+
+OPTIONAL: You can use the `threading` library to read the files instead.
+	Obviously using one thread to read all the files would be cheating.
+
+The sales data is initially in the form of a JSON file with a filename of the
+form 'agent{agent_id}_sales.json' and contains a JSON object (dict) in the 
+format:
+{
+    "name": agent name,
+    "sales": [
+        {
+            "day": day of the week,
+            "amounts":
+                [list of integers]
+        }
+    ]
+}
+They also have a table of multipliers (multipliers.json), indicating what 
+fraction of normal pay a person should get for sales on each day of the week.
+
+For each JSON file, you should enter the following into the database:
+* The agent_id from the filename
+* the name of the agent
+* the amount sold per day: an integer calculated using the following algorithm:
+    1. Use the "amounts" field for each day to calculate the sales for
+        each day.
+    2. Any negative numbers are invalid and should be ignored.
+    3. If there are no valid entries for a day, the entire day is ignored.
+    4. All non-negative numbers should be added together to get the total
+        for that day.
+    5. The sum of all the numbers for a given day should be multiplied by
+        the multiplier for that weekday (in the multipliers dictionary),
+        and then rounded down to the nearest integer (using int()).
+For example, consider the JSON file "agent31_sales.json":
+{'name': 'Bob',
+'sales': [{'day': 'Monday', 'amounts': [1, -1]},
+        {'day': 'Sunday', 'amounts': [10, 7]}
+       ]
+}
+and the multipliers.json file:
+{"Monday": 1,
+     "Tuesday": 1,
+     "Wednesday": 1,
+     "Thursday": 1,
+     "Friday": 1,
+     "Saturday": 1.25,
+     "Sunday": 1.25}
+Given those inputs, you should add two rows to the database:
+    (31, 'Bob', 1),
+    (31, 'Bob', 30)
+The amount in the first row is 1, because you ignore the -1, and the multiplier
+    for 'Monday' is 1, so you get int(1*1) = 1.
+The amount in the second row is 12, because we ignore 7 as a prime number,
+    the multiplier for 'Sunday' is 1.25, and int(1.25 * 10) = 12.
+
+Once you've inserted the new rows into the database, answer the following
+questions:
+1. What are the names of the agents with agent_id greater than 20?
+2. For the agents with agent_id greater than 20, how many rows have negative
+	amount?
